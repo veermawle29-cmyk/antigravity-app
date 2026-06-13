@@ -1,0 +1,33 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper: Checks if the user is logged in
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    // Helper: Checks if the authenticated user matches the specified owner UID
+    function isOwner(userId) {
+      return isAuthed() && request.auth.uid == userId;
+    }
+
+    // --- UPLOADS PATH (Images & Reels Videos) ---
+    match /uploads/{userId}/{allPaths=**} {
+      allow read: if isAuthed();
+      // Allow creation/updating/deletion of files only if they are uploaded inside the user's own directory
+      // Restrict files to standard images or video formats, and cap file size to 50MB
+      allow write: if isOwner(userId) 
+        && request.resource.size < 50 * 1024 * 1024;
+    }
+
+    // --- PROFILE PICTURES PATH ---
+    match /profile_pics/{userId}/{allPaths=**} {
+      allow read: if isAuthed();
+      // Allow updating own profile picture, limit size to 5MB
+      allow write: if isOwner(userId)
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

@@ -1,0 +1,118 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: Checks if the user is authenticated
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    // Helper: Checks if the authenticated user matches the specified userId
+    function isOwner(userId) {
+      return isAuthed() && request.auth.uid == userId;
+    }
+
+    // --- USERS COLLECTION ---
+    match /users/{userId} {
+      allow read: if isAuthed();
+      // Allow creation during signup
+      allow create: if isOwner(userId) 
+        && request.resource.data.uid == userId
+        && request.resource.data.username is string
+        && request.resource.data.fullname is string;
+      // Allow updates to own profile
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    // --- USERNAMES COLLECTION (Unique Username Index) ---
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if isAuthed() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAuthed() && resource.data.uid == request.auth.uid;
+    }
+
+    // --- POSTS COLLECTION ---
+    match /posts/{postId} {
+      allow read: if isAuthed();
+      allow create: if isAuthed() 
+        && request.resource.data.author.uid == request.auth.uid;
+      allow update, delete: if isAuthed() 
+        && resource.data.author.uid == request.auth.uid;
+      
+      // Allow likes/comments/shares increment update
+      allow update: if isAuthed()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount', 'commentsCount', 'sharesCount']);
+
+      // --- COMMENTS SUBCOLLECTION ---
+      match /comments/{commentId} {
+        allow read: if isAuthed();
+        allow create: if isAuthed() && request.resource.data.uid == request.auth.uid;
+        allow update, delete: if isAuthed() && resource.data.uid == request.auth.uid;
+      }
+
+      // --- LIKES SUBCOLLECTION ---
+      match /likes/{userId} {
+        allow read: if isAuthed();
+        allow write: if isOwner(userId);
+      }
+    }
+
+    // --- REELS COLLECTION ---
+    match /reels/{reelId} {
+      allow read: if isAuthed();
+      allow create: if isAuthed() 
+        && request.resource.data.creator.uid == request.auth.uid;
+      allow update, delete: if isAuthed() 
+        && resource.data.creator.uid == request.auth.uid;
+
+      // Allow likes/views increment update
+      allow update: if isAuthed()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'views']);
+
+      // --- LIKES SUBCOLLECTION ---
+      match /likes/{userId} {
+        allow read: if isAuthed();
+        allow write: if isOwner(userId);
+      }
+    }
+
+    // --- STORIES COLLECTION ---
+    match /stories/{storyId} {
+      allow read: if isAuthed();
+      allow create: if isAuthed() 
+        && request.resource.data.author.uid == request.auth.uid;
+      allow delete: if isAuthed() 
+        && resource.data.author.uid == request.auth.uid;
+    }
+
+    // --- COMMUNITIES COLLECTION ---
+    match /communities/{communityId} {
+      allow read: if isAuthed();
+      allow create: if isAuthed() && request.resource.data.creatorUid == request.auth.uid;
+      allow update, delete: if isAuthed() && resource.data.creatorUid == request.auth.uid;
+    }
+
+    // --- CHATS CONNECTION ---
+    match /chats/{chatId} {
+      allow read, write: if isAuthed();
+      
+      match /messages/{messageId} {
+        allow read, write: if isAuthed();
+      }
+    }
+
+    // --- NOTIFICATIONS SUBCOLLECTION ---
+    match /users/{userId}/notifications/{notificationId} {
+      allow read: if isOwner(userId);
+      allow create: if isAuthed(); // other authenticated users can write notifications
+      allow update, delete: if isOwner(userId);
+    }
+
+    // --- ERRORS COLLECTION (Logging) ---
+    match /errors/{errorId} {
+      allow create: if true; // allow anyone (even anonymous/pre-auth failures) to log errors
+      allow read, update, delete: if false; // restrict reads/updates/deletes for security
+    }
+  }
+}
