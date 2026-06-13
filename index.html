@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0F1115">
+  <title>YaarBuzz - India's Gamified Social App</title>
+  <!-- Google Fonts for Premium Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <!-- Core Design CSS -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Main PWA Frame -->
+  <div id="app-root">
+    
+    <!-- Global Splash Screen -->
+    <div id="screen-splash" style="display: flex;">
+      <img class="splash-logo" src="assets/logo.png" alt="YaarBuzz Logo">
+      <div class="splash-loader"></div>
+      <div class="splash-text">YaarBuzz</div>
+      <div class="splash-tagline">Connect, Share, Shine</div>
+    </div>
+    
+    <!-- Top Global App Bar (Hidden in full-screen views like Onboarding & Reels) -->
+    <header id="app-header">
+      <div class="brand-section">
+        <img class="brand-logo" src="assets/logo.png" alt="YaarBuzz Logo">
+        <span class="brand-name" data-local="app_name">YaarBuzz</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <!-- Notification Bell -->
+        <button id="nav-notifications" class="nav-action-btn nav-item" style="background:none; border:none; color:var(--text-primary); cursor:pointer; display:flex;" title="Notifications">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        </button>
+        <!-- Admin Console Toggle Button -->
+        <button id="admin-toggle-btn" class="nav-action-btn" style="background:none; border:none; color:var(--primary-orange); cursor:pointer; display:flex;" title="Admin Panel">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        <!-- Language Selector -->
+        <button id="lang-toggle-btn" class="nav-action-btn" style="background:none; border:none; color:var(--text-primary); cursor:pointer; font-weight:700; font-size:13px;" title="Switch Language">
+          EN
+        </button>
+        <!-- Light/Dark Toggle -->
+        <button id="theme-toggle-btn" class="nav-action-btn" style="background:none; border:none; color:var(--text-primary); cursor:pointer; display:flex;" title="Toggle Theme">
+          <svg id="theme-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Content Screen Router -->
+    <main id="app-screens" style="flex:1; width:100%; height:calc(100% - var(--nav-height) - var(--header-height)); position:relative; overflow:hidden;">
+      
+      <!-- Onboarding & Welcome Screen -->
+      <div id="screen-onboarding" class="screen full-screen" style="display: none;">
+        <div class="carousel-container">
+          <!-- Slide 1 -->
+          <div class="carousel-slide active" data-slide="0">
+            <div class="carousel-illustration">
+              <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="var(--primary-orange)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
+            </div>
+            <h1 data-local="onboarding_slide1_title" style="font-family:'Outfit', sans-serif; margin-bottom: 12px;">Share Reels & Posts</h1>
+            <p data-local="onboarding_slide1_desc">Express yourself with short videos, beautiful photos, and engaging text posts with your community.</p>
+          </div>
+          <!-- Slide 2 -->
+          <div class="carousel-slide" data-slide="1">
+            <div class="carousel-illustration">
+              <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="var(--primary-orange)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <h1 data-local="onboarding_slide2_title" style="font-family:'Outfit', sans-serif; margin-bottom: 12px;">Discover Locals Nearby</h1>
+            <p data-local="onboarding_slide2_desc">Connect with creators, friends, and trending posts within 50km in our dedicated Local tab.</p>
+          </div>
+          <!-- Slide 3 -->
+          <div class="carousel-slide" data-slide="2">
+            <div class="carousel-illustration">
+              <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="var(--secondary-green)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.45 1-1 1H4v2h16v-2h-5c-.55 0-1-.45-1-1v-2.34"/><path d="M12 2a6 6 0 0 1 6 6v1H6V8a6 6 0 0 1 6-6Z"/></svg>
+            </div>
+            <h1 data-local="onboarding_slide3_title" style="font-family:'Outfit', sans-serif; margin-bottom: 12px;">Earn Points & Badges</h1>
+            <p data-local="onboarding_slide3_desc">Get rewarded for your creativity! Earn points for likes, posts, and daily login streak rewards.</p>
+          </div>
+
+          <!-- Dots Indicator -->
+          <div class="carousel-dots">
+            <span class="dot active"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+
+          <!-- CTA Buttons -->
+          <div style="width: 100%; display: flex; flex-direction: column; gap: 12px;">
+            <button id="onboarding-next-btn" class="btn btn-primary" data-local="get_started">Get Started</button>
+            <button id="onboarding-login-btn" class="btn btn-secondary" data-local="login">Log In</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Authentication Screen -->
+      <div id="screen-auth" class="screen full-screen" style="display: none; padding: 24px; overflow-y: auto;">
+        <div style="display: flex; flex-direction: column; min-height: 100%; align-items: center; justify-content: center; max-width: 350px; margin: 0 auto; width: 100%; padding: 20px 0;">
+          <div style="text-align: center; margin: 0 0 20px;">
+            <img src="assets/logo.png" alt="YB" style="width: 72px; height: 72px; margin-bottom: 12px; object-fit: contain;">
+            <h1 style="font-family:'Outfit', sans-serif;">YaarBuzz</h1>
+            <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">Connect, Share, Shine</p>
+          </div>
+
+          <!-- Auth Form Mode Toggle Tabs (Login vs Signup) -->
+          <div style="display: flex; border-bottom: 1px solid var(--border-color); background: var(--surface-color); border-radius: var(--radius-sm); overflow: hidden; width: 100%; margin-bottom: 20px;">
+            <div id="auth-tab-login" class="tab-btn active" style="padding: 10px 0; font-size: 13px;">Log In</div>
+            <div id="auth-tab-signup" class="tab-btn" style="padding: 10px 0; font-size: 13px;">Sign Up</div>
+          </div>
+
+          <!-- Continue with Google (Global across Login / Signup) -->
+          <button id="auth-google-btn" class="btn btn-secondary" style="margin-bottom: 16px; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"><path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.866-3.577-7.866-8s3.536-8 7.866-8c2.46 0 4.105 1.025 5.047 1.926l3.227-3.1C18.29.986 15.485 0 12.24 0 5.48 0 0 5.37 0 12s5.48 12 12.24 12c7.06 0 11.758-4.912 11.758-11.83 0-.796-.086-1.4-.189-1.885H12.24Z"/></svg>
+            <span>Continue with Google</span>
+          </button>
+
+          <!-- Divider -->
+          <div style="display: flex; align-items: center; width: 100%; margin-bottom: 16px;">
+            <div style="flex: 1; height: 1px; background: var(--border-color);"></div>
+            <span style="font-size: 12px; color: var(--text-muted); padding: 0 12px; text-transform: uppercase;">or</span>
+            <div style="flex: 1; height: 1px; background: var(--border-color);"></div>
+          </div>
+
+          <div id="auth-error-msg" style="color: var(--danger-red); text-align: center; margin-bottom: 16px; font-size: 13px; width: 100%; padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: var(--radius-sm); border: 1px solid rgba(239, 68, 68, 0.2); display: none;"></div>
+          
+          <!-- Recaptcha Container for Phone OTP -->
+          <div id="recaptcha-container" style="margin-bottom: 16px; display: none; justify-content: center;"></div>
+
+          <!-- Unified Login View -->
+          <div id="auth-login-view" style="display: flex; flex-direction: column; width: 100%;">
+            <div class="input-group">
+              <input id="auth-login-identifier" type="text" class="input-field" placeholder="Username, Email, or Phone">
+            </div>
+            <div class="input-group" style="margin-bottom: 8px; position: relative;" id="auth-login-password-group">
+              <input id="auth-login-password" type="password" class="input-field" placeholder="Password">
+              <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('auth-login-password', this)" aria-label="Toggle password visibility">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            
+            <div style="text-align: right; margin-bottom: 16px;" id="auth-login-forgot-group">
+              <a href="#" id="auth-forgot-link" style="font-size: 12px; color: var(--text-secondary); text-decoration: none;">Forgot Password?</a>
+            </div>
+
+            <button id="auth-login-btn" class="btn btn-primary">
+              <span>Log In</span>
+            </button>
+
+            <div style="text-align: center; margin-top: 18px; font-size: 13px; color: var(--text-secondary);">
+              <a href="#" id="auth-toggle-phone-otp-login" style="color: var(--primary-orange); text-decoration: none; font-weight: 600;">Log In with Phone OTP (SMS)</a>
+            </div>
+          </div>
+
+          <!-- Phone OTP Login View (SMS) -->
+          <div id="auth-phone-view" style="display: none; flex-direction: column; width: 100%;">
+            <div id="phone-input-section">
+              <div class="input-group">
+                <input id="login-identifier" type="tel" class="input-field" placeholder="Mobile Number (e.g. +919999999999)">
+              </div>
+              <button id="auth-send-otp-btn" class="btn btn-primary" style="margin-top: 8px;">
+                <span id="send-btn-text">Send OTP via SMS</span>
+              </button>
+            </div>
+
+            <div id="otp-input-section" style="display: none;">
+              <div class="input-group">
+                <input id="login-otp" type="text" class="input-field" placeholder="Enter 6-digit OTP" maxlength="6">
+              </div>
+              <button id="auth-verify-otp-btn" class="btn btn-primary" style="margin-top: 8px;">
+                <span id="verify-btn-text">Verify OTP & Log In</span>
+              </button>
+              
+              <div style="text-align: center; margin-top: 12px; font-size: 13px; color: var(--text-secondary);">
+                <span id="otp-timer-text">Resend code in <strong id="otp-countdown">60</strong>s</span>
+                <button id="auth-resend-otp-btn" style="display: none; background: none; border: none; color: var(--primary-orange); font-weight: 600; cursor: pointer; padding: 0;">Resend OTP</button>
+              </div>
+            </div>
+            <div style="text-align: center; margin-top: 18px; font-size: 13px; color: var(--text-secondary);">
+              <a href="#" id="auth-toggle-password-login" style="color: var(--primary-orange); text-decoration: none; font-weight: 600;">Back to Password Login</a>
+            </div>
+          </div>
+
+          <!-- Signup Flow (Multi-step) -->
+          <div id="auth-signup-view" style="display: none; flex-direction: column; width: 100%;">
+            <!-- Step Indicators -->
+            <div class="signup-steps-indicator">
+              <div id="signup-step1-dot" class="signup-step-dot active"></div>
+              <div id="signup-step-line" class="signup-step-line"></div>
+              <div id="signup-step2-dot" class="signup-step-dot"></div>
+            </div>
+
+            <!-- Step 1: Credentials -->
+            <div id="auth-signup-step1" style="display: flex; flex-direction: column; width: 100%;">
+              <div class="input-group">
+                <input id="auth-signup-fullname" type="text" class="input-field" placeholder="Full Name">
+              </div>
+              <div class="input-group">
+                <input id="auth-signup-username" type="text" class="input-field" placeholder="Username (alphanumeric, 3+ chars)">
+                <div id="auth-username-status" class="username-status" style="display: none;">Checking...</div>
+              </div>
+              <div class="input-group">
+                <input id="auth-signup-email-phone" type="text" class="input-field" placeholder="Email or Mobile Number (+CountryCode)">
+              </div>
+              <div class="input-group" style="position: relative;">
+                <input id="auth-signup-password" type="password" class="input-field" placeholder="Password (6+ chars)">
+                <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('auth-signup-password', this)" aria-label="Toggle password visibility">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+
+              <button id="auth-signup-next-btn" class="btn btn-primary" style="margin-top: 4px;">
+                <span>Next Step</span>
+              </button>
+            </div>
+
+            <!-- Step 2: Profile Customization -->
+            <div id="auth-signup-step2" style="display: none; flex-direction: column; width: 100%;">
+              <!-- Picture upload wrapper -->
+              <div class="avatar-upload-wrapper">
+                <div class="avatar-preview-circle" id="auth-signup-avatar-trigger">
+                  <img id="auth-signup-avatar-preview" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%23333' /><text x='50%25' y='54%25' font-family='sans-serif' font-size='36' font-weight='700' fill='white' text-anchor='middle' dominant-baseline='middle'>YB</text></svg>">
+                  <div class="avatar-upload-icon">+</div>
+                </div>
+                <input type="file" id="auth-signup-avatar-input" accept="image/*" style="display:none;">
+                <span style="font-size:11px; color:var(--text-secondary);">Select Profile Picture (Optional)</span>
+              </div>
+
+              <!-- City Selection -->
+              <div class="input-group">
+                <label class="input-label">Select Your City</label>
+                <select id="auth-signup-city" class="input-field">
+                  <option value="">Choose City...</option>
+                  <option value="Delhi">Delhi</option>
+                  <option value="Mumbai">Mumbai</option>
+                  <option value="Bengaluru">Bengaluru</option>
+                  <option value="Hyderabad">Hyderabad</option>
+                  <option value="Chennai">Chennai</option>
+                  <option value="Kolkata">Kolkata</option>
+                  <option value="Pune">Pune</option>
+                  <option value="Ahmedabad">Ahmedabad</option>
+                  <option value="Jaipur">Jaipur</option>
+                  <option value="Lucknow">Lucknow</option>
+                </select>
+              </div>
+
+              <!-- Interests selector -->
+              <div class="input-group">
+                <label class="input-label">Select Your Interests</label>
+                <div id="auth-signup-interests" class="interest-chips-container">
+                  <div class="interest-chip" data-interest="Reels">🎬 Entertainment & Reels</div>
+                  <div class="interest-chip" data-interest="Sports">🏏 Cricket & Sports</div>
+                  <div class="interest-chip" data-interest="Food">🍔 Food & Cooking</div>
+                  <div class="interest-chip" data-interest="Travel">✈️ Travel & Adventure</div>
+                  <div class="interest-chip" data-interest="Music">🎵 Music & Dance</div>
+                  <div class="interest-chip" data-interest="Tech">💻 Tech & Gaming</div>
+                  <div class="interest-chip" data-interest="Art">🎨 Art & Fashion</div>
+                  <div class="interest-chip" data-interest="Comedy">🎭 Comedy & Memes</div>
+                </div>
+              </div>
+
+              <button id="auth-signup-submit-btn" class="btn btn-primary" style="margin-top: 8px;">
+                <span>Create Account</span>
+              </button>
+              <button id="auth-signup-back-btn" class="btn btn-secondary" style="margin-top: 8px;">
+                <span>Back to Step 1</span>
+              </button>
+            </div>
+
+            <!-- Step 3: Registration progress loader -->
+            <div id="auth-signup-step3" style="display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px 0; text-align: center;">
+              <div class="splash-loader" style="width: 36px; height: 36px; border-width: 4px;"></div>
+              <h3 style="color: white; margin-top: 16px;">Creating Your Account...</h3>
+              <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Configuring profile and permissions</p>
+            </div>
+          </div>
+
+          <!-- Forgot Password View -->
+          <div id="auth-forgot-view" style="display: none; flex-direction: column; width: 100%;">
+            <p style="font-size: 13px; text-align: center; margin-bottom: 16px; color: var(--text-secondary);">Enter your email address and we'll send you a recovery link to reset your password.</p>
+            <div class="input-group">
+              <input id="auth-forgot-email" type="email" class="input-field" placeholder="Email Address">
+            </div>
+            <button id="auth-forgot-btn" class="btn btn-primary" style="margin-top: 4px;">
+              <span>Send Reset Link</span>
+            </button>
+
+            <div style="text-align: center; margin-top: 18px; font-size: 13px; color: var(--text-secondary);">
+              <a href="#" id="auth-toggle-to-login-from-forgot" style="color: var(--primary-orange); text-decoration: none; font-weight: 600;">Back to Log In</a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Profile Setup Screen (for Google/SMS signups) -->
+      <div id="screen-profile-setup" class="screen full-screen" style="display: none; padding: 24px; overflow-y: auto;">
+        <div style="display: flex; flex-direction: column; min-height: 100%; align-items: center; justify-content: center; max-width: 350px; margin: 0 auto; width: 100%; padding: 20px 0;">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <h2 style="font-family:'Outfit', sans-serif; font-size: 22px;">Complete Your Profile</h2>
+            <p style="font-size: 13px; color: var(--text-secondary); margin-top: 6px;">Choose a unique username and customize your profile details.</p>
+          </div>
+          
+          <div id="setup-error-msg" style="color: var(--danger-red); text-align: center; margin-bottom: 16px; font-size: 13px; width: 100%; padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: var(--radius-sm); border: 1px solid rgba(239, 68, 68, 0.2); display: none;"></div>
+
+          <!-- Avatar upload -->
+          <div class="avatar-upload-wrapper">
+            <div class="avatar-preview-circle" id="auth-setup-avatar-trigger">
+              <img id="auth-setup-avatar-preview" src="">
+              <div class="avatar-upload-icon">+</div>
+            </div>
+            <input type="file" id="auth-setup-avatar-input" accept="image/*" style="display:none;">
+            <span style="font-size:11px; color:var(--text-secondary);">Upload Profile Picture</span>
+          </div>
+
+          <!-- Full Name -->
+          <div class="input-group">
+            <input id="auth-setup-fullname" type="text" class="input-field" placeholder="Full Name">
+          </div>
+
+          <!-- Username with checker -->
+          <div class="input-group">
+            <input id="auth-setup-username" type="text" class="input-field" placeholder="Username (3+ chars, alphanumeric/underscore)">
+            <div id="auth-setup-username-status" class="username-status" style="display: none;">Checking...</div>
+          </div>
+
+          <!-- City Dropdown -->
+          <div class="input-group">
+            <label class="input-label">Select Your City</label>
+            <select id="auth-setup-city" class="input-field">
+              <option value="">Choose City...</option>
+              <option value="Delhi">Delhi</option>
+              <option value="Mumbai">Mumbai</option>
+              <option value="Bengaluru">Bengaluru</option>
+              <option value="Hyderabad">Hyderabad</option>
+              <option value="Chennai">Chennai</option>
+              <option value="Kolkata">Kolkata</option>
+              <option value="Pune">Pune</option>
+              <option value="Ahmedabad">Ahmedabad</option>
+              <option value="Jaipur">Jaipur</option>
+              <option value="Lucknow">Lucknow</option>
+            </select>
+          </div>
+
+          <!-- Interests -->
+          <div class="input-group">
+            <label class="input-label">Select Your Interests</label>
+            <div id="auth-setup-interests" class="interest-chips-container">
+              <div class="interest-chip" data-interest="Reels">🎬 Entertainment & Reels</div>
+              <div class="interest-chip" data-interest="Sports">🏏 Cricket & Sports</div>
+              <div class="interest-chip" data-interest="Food">🍔 Food & Cooking</div>
+              <div class="interest-chip" data-interest="Travel">✈️ Travel & Adventure</div>
+              <div class="interest-chip" data-interest="Music">🎵 Music & Dance</div>
+              <div class="interest-chip" data-interest="Tech">💻 Tech & Gaming</div>
+              <div class="interest-chip" data-interest="Art">🎨 Art & Fashion</div>
+              <div class="interest-chip" data-interest="Comedy">🎭 Comedy & Memes</div>
+            </div>
+          </div>
+
+          <button id="auth-setup-submit-btn" class="btn btn-primary" style="margin-top: 12px;">
+            <span>Save & Continue</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Home Feed Screen -->
+      <div id="screen-home" class="screen" style="display: none;">
+        <!-- Stories Section -->
+        <div id="stories-container" class="stories-container" style="display: flex; gap: 12px; padding: 12px 16px; overflow-x: auto; border-bottom: 1px solid var(--border-color); scrollbar-width: none;">
+          <!-- Populated via JS -->
+        </div>
+        <!-- Tabs Header -->
+        <div class="tabs-header">
+          <div id="feed-tab-foryou" class="tab-btn active" data-local="tab_foryou">For You</div>
+          <div id="feed-tab-local" class="tab-btn" data-local="tab_local">Local Nearby</div>
+        </div>
+        <!-- Scrollable Feed Container -->
+        <div id="feed-scroll-container" class="scrollable" style="flex:1;">
+          <!-- Skeleton Loading (will be replaced by JS) -->
+          <div id="feed-skeleton" style="display:none; padding:16px;">
+            <div style="height: 180px; background: var(--surface-color); border-radius: var(--radius-md); margin-bottom: 16px; animation: pulse 1.5s infinite alternate;"></div>
+            <div style="height: 180px; background: var(--surface-color); border-radius: var(--radius-md); animation: pulse 1.5s infinite alternate;"></div>
+          </div>
+          <!-- Real feed list -->
+          <div id="feed-post-list"></div>
+        </div>
+      </div>
+
+      <!-- Reels Screen -->
+      <div id="screen-reels" class="screen" style="display: none; height: 100%;">
+        <div id="reels-scroll-container" class="reels-container">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Create Screen -->
+      <div id="screen-create" class="screen" style="display: none; padding: 16px; overflow-y: auto;">
+        <!-- Selection Tabs -->
+        <div class="tabs-header" style="margin-bottom: 20px;">
+          <div id="create-tab-reel" class="tab-btn active" data-local="tab_create_reel">Reel</div>
+          <div id="create-tab-photo" class="tab-btn" data-local="tab_create_photo">Photo</div>
+          <div id="create-tab-story" class="tab-btn">Story</div>
+          <div id="create-tab-text" class="tab-btn" data-local="tab_create_text">Text</div>
+        </div>
+
+        <!-- Reel creation editor panel -->
+        <div id="create-reel-panel" style="display: block;">
+          <div style="background: var(--surface-color); border: 2px dashed var(--border-color); height: 160px; border-radius: var(--radius-md); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; position: relative;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--primary-orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+            <span style="font-size: 13px;" data-local="select_media">Select Reel File (Video)</span>
+            <span id="reel-file-name" style="font-size: 11px; color: var(--secondary-green); display: none; z-index: 10;"></span>
+            <input type="file" id="reel-file-input" accept="video/*" style="position: absolute; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 20;">
+          </div>
+          <!-- Video Editing Controls -->
+          <div style="display: flex; gap: 8px; margin: 16px 0;">
+            <button id="create-record-btn" class="btn btn-secondary" style="padding: 10px; font-size: 12px;" data-local="record_btn">Record 90s</button>
+            <button class="btn btn-secondary" style="padding: 10px; font-size: 12px;" data-local="trim_btn">Trim</button>
+            <button class="btn btn-secondary" style="padding: 10px; font-size: 12px;" data-local="music_btn">Music</button>
+          </div>
+        </div>
+
+        <!-- Photo upload panel -->
+        <div id="create-photo-panel" style="display: none;">
+          <div style="background: var(--surface-color); border: 2px dashed var(--border-color); height: 160px; border-radius: var(--radius-md); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; position: relative;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--primary-orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+            <span style="font-size: 13px;" data-local="select_media">Select Photos</span>
+            <span id="photo-file-name" style="font-size: 11px; color: var(--secondary-green); display: none; z-index: 10;"></span>
+            <input type="file" id="photo-file-input" accept="image/*" multiple style="position: absolute; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 20;">
+          </div>
+        </div>
+
+        <!-- Caption and Publish -->
+        <div class="input-group" style="margin-top: 20px;">
+          <label class="input-label">Caption</label>
+          <textarea id="create-caption-input" class="input-field" rows="4" placeholder="Write a caption, use hashtags #yaar #buzz..." style="resize: none;"></textarea>
+        </div>
+
+        <div id="upload-progress-container" style="display: none; background: var(--surface-color); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
+            <span id="upload-progress-text">Uploading...</span>
+            <span id="upload-progress-percent">0%</span>
+          </div>
+          <div style="background: var(--border-color); height: 6px; border-radius: 3px; overflow: hidden;">
+            <div id="upload-progress-bar" style="background: var(--primary-orange); height: 100%; width: 0%; transition: width 0.1s;"></div>
+          </div>
+        </div>
+
+        <button id="create-publish-btn" class="btn btn-primary" data-local="upload_btn">Publish Post</button>
+      </div>
+
+      <!-- Inbox (Direct Messages) Screen -->
+      <div id="screen-inbox" class="screen" style="display: none;">
+        <!-- Messaging UI divided between Inbox User List & Active Chat Room -->
+        <div id="inbox-user-list-view" style="display: block; height: 100%;" class="scrollable">
+          <h2 style="padding: 16px; font-family:'Outfit', sans-serif;">Direct Messages</h2>
+          <!-- User rows will populate here dynamically -->
+          <div id="chat-threads-container"></div>
+        </div>
+
+        <!-- Direct Room Active View -->
+        <div id="inbox-active-chat-view" style="display: none; height: 100%;">
+          <div class="chat-room-container">
+            <div class="chat-header">
+              <button id="chat-back-btn" style="background: none; border: none; color: var(--text-primary); display: flex; cursor: pointer;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" x2="5" y1="12" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+              </button>
+              <img id="chat-user-avatar" src="" style="width: 32px; height: 32px; border-radius: 50%;">
+              <span id="chat-user-name" style="font-weight: 600;">Username</span>
+            </div>
+            <div id="chat-message-list" class="chat-messages">
+              <!-- bubbles dynamically loaded -->
+            </div>
+            <div class="chat-input-bar">
+              <input id="chat-msg-input" type="text" class="input-field" placeholder="Type a message..." style="border-radius: 20px;">
+              <button id="chat-send-btn" class="btn btn-primary" style="width: auto; padding: 10px; border-radius: 50%;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search & Discover Screen -->
+      <div id="screen-search" class="screen" style="display: none; padding: 16px; overflow-y: auto;">
+        <div style="display: flex; gap: 8px; margin-bottom: 20px;">
+          <input id="search-input-field" type="text" class="input-field" placeholder="Search creators, hashtags, locations..." style="border-radius: var(--radius-md);">
+        </div>
+        
+        <h3 style="margin-bottom: 12px; font-family:'Outfit', sans-serif;" data-local="trending_now">Trending Creators & Tags</h3>
+        <div id="trending-hashtags-container" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px;">
+          <!-- Hashtags chips -->
+        </div>
+      </div>
+
+      <!-- Gamification Leaderboard Screen -->
+      <div id="screen-leaderboard" class="screen scrollable" style="display: none; padding: 16px;">
+        <h2 style="margin-bottom: 20px; font-family:'Outfit', sans-serif; text-align: center; color: var(--primary-orange);" data-local="weekly_leaderboard">Weekly Leaderboard</h2>
+        <!-- Top 3 Podium layout -->
+        <div class="podium-container">
+          <div class="podium-column silver">
+            <img class="podium-avatar" id="podium-2-avatar" src="" alt="2nd">
+            <span style="font-size:11px; font-weight:600; text-align:center; white-space:nowrap; max-width:80px; overflow:hidden;" id="podium-2-name">User</span>
+            <div class="podium-block">2</div>
+          </div>
+          <div class="podium-column gold">
+            <img class="podium-avatar" id="podium-1-avatar" src="" alt="1st">
+            <span style="font-size:11px; font-weight:600; text-align:center; white-space:nowrap; max-width:80px; overflow:hidden;" id="podium-1-name">User</span>
+            <div class="podium-block">1</div>
+          </div>
+          <div class="podium-column bronze">
+            <img class="podium-avatar" id="podium-3-avatar" src="" alt="3rd">
+            <span style="font-size:11px; font-weight:600; text-align:center; white-space:nowrap; max-width:80px; overflow:hidden;" id="podium-3-name">User</span>
+            <div class="podium-block">3</div>
+          </div>
+        </div>
+
+        <div id="leaderboard-full-list" class="leaderboard-list">
+          <!-- remaining rows dynamically populated -->
+        </div>
+      </div>
+
+      <!-- Notifications Screen -->
+      <div id="screen-notifications" class="screen scrollable" style="display: none;">
+        <h2 style="padding: 16px; font-family:'Outfit', sans-serif;" data-local="notifications">Notifications</h2>
+        <div id="notifications-list-container">
+          <!-- Notifications items -->
+        </div>
+      </div>
+
+      <!-- Profile & Settings Screen -->
+      <div id="screen-profile" class="screen scrollable" style="display: none;">
+        <!-- Stats Layout -->
+        <div class="profile-header">
+          <div class="profile-main">
+            <div class="profile-pic-container">
+              <img id="profile-user-pic" class="profile-pic" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%23333' /><text x='50%25' y='54%25' font-family='sans-serif' font-size='36' font-weight='700' fill='white' text-anchor='middle' dominant-baseline='middle'>YB</text></svg>" alt="Avatar">
+            </div>
+            <div class="profile-stats">
+              <div class="stat-box">
+                <span id="profile-stat-posts" class="stat-num">0</span>
+                <span class="stat-label">Posts</span>
+              </div>
+              <div class="stat-box">
+                <span id="profile-stat-followers" class="stat-num">0</span>
+                <span class="stat-label">Followers</span>
+              </div>
+              <div class="stat-box">
+                <span id="profile-stat-following" class="stat-num">0</span>
+                <span class="stat-label">Following</span>
+              </div>
+              <div class="stat-box">
+                <span id="profile-stat-points" class="stat-num" style="color: var(--secondary-green);">0</span>
+                <span class="stat-label" data-local="points_xp">XP Points</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="profile-info">
+            <h2 id="profile-user-fullname" class="profile-name">Full Name</h2>
+            <div id="profile-user-handle" class="profile-username">@username</div>
+            <p id="profile-user-bio" class="profile-bio"></p>
+          </div>
+
+          <!-- Badges Section -->
+          <h3 style="margin-top: 20px; font-size:13px; font-family:'Outfit', sans-serif;" data-local="badges_earned">Badges Collection</h3>
+          <div class="badges-container">
+            <div class="badge-item" id="badge-pioneer" title="First Post Badge">
+              <div class="badge-icon">🎖️</div>
+              <span class="badge-name">Pioneer</span>
+            </div>
+            <div class="badge-item" id="badge-local" title="Local discovery contributor">
+              <div class="badge-icon">📍</div>
+              <span class="badge-name">Local Hero</span>
+            </div>
+            <div class="badge-item" id="badge-streak" title="7 Days login streak">
+              <div class="badge-icon">🔥</div>
+              <span class="badge-name">7-Day Fire</span>
+            </div>
+            <div class="badge-item" id="badge-creator" title="10 Posts shared">
+              <div class="badge-icon">👑</div>
+              <span class="badge-name">Super Creator</span>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button id="profile-edit-btn" class="btn btn-secondary" style="padding: 10px; font-size: 13px;" data-local="edit_profile">Edit Profile</button>
+            <button id="profile-settings-btn" class="btn btn-secondary" style="padding: 10px; font-size: 13px;" data-local="settings">Settings</button>
+          </div>
+        </div>
+
+        <!-- Post Grid Tabs -->
+        <div class="profile-tabs">
+          <div class="profile-tab active" id="profile-tab-grid">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          </div>
+        </div>
+
+        <!-- Grid Container -->
+        <div id="profile-grid-posts" class="posts-grid">
+          <!-- images loaded here -->
+        </div>
+
+        <!-- Settings Modal Panel (Inside profile screen for convenience) -->
+        <div id="profile-settings-panel" style="display: none; padding: 16px; border-top: 1px solid var(--border-color); background: var(--surface-color); animation: slideDown 0.3s ease;">
+          <h3 style="margin-bottom: 16px;">App Settings & Privacy</h3>
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span>Public Account</span>
+              <input type="checkbox" checked style="accent-color: var(--primary-orange);">
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span>Direct Messages</span>
+              <select class="input-field" style="width:auto; padding:6px 12px;">
+                <option>Everyone</option>
+                <option>Followers</option>
+                <option>No One</option>
+              </select>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span>Clear Local Cache</span>
+              <button id="settings-clear-cache-btn" class="btn btn-secondary" style="width:auto; padding:6px 12px; font-size:12px;">Clear</button>
+            </div>
+            <button id="settings-delete-account-btn" class="btn btn-secondary" style="color:var(--danger-red); border-color:var(--danger-red); font-size:13px; padding:10px;">Delete Account</button>
+            <button id="settings-logout-btn" class="btn btn-primary" style="font-size:13px; padding:10px;">Log Out</button>
+          </div>
+        </div>
+
+        <!-- Edit Profile Modal Panel -->
+        <div id="profile-edit-panel" style="display: none; padding: 16px; border-top: 1px solid var(--border-color); background: var(--surface-color); animation: slideDown 0.3s ease;">
+          <h3 style="margin-bottom: 16px;">Update Details</h3>
+          <div class="input-group">
+            <label class="input-label">Profile Picture</label>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+              <img id="edit-profile-pic-preview" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%23333' /><text x='50%25' y='54%25' font-family='sans-serif' font-size='36' font-weight='700' fill='white' text-anchor='middle' dominant-baseline='middle'>YB</text></svg>" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-color);">
+              <input id="edit-profile-pic-input" type="file" accept="image/*" class="input-field" style="padding: 6px 12px; font-size: 12px;">
+            </div>
+          </div>
+          <div class="input-group">
+            <label class="input-label">Username</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="color: var(--text-secondary); font-size: 14px;">@</span>
+              <input id="edit-username-display" type="text" class="input-field" readonly style="opacity: 0.6; cursor: not-allowed;">
+            </div>
+          </div>
+          <div class="input-group">
+            <label class="input-label">Full Name</label>
+            <input id="edit-fullname-input" type="text" class="input-field">
+          </div>
+          <div class="input-group">
+            <label class="input-label">Bio</label>
+            <textarea id="edit-bio-input" class="input-field" rows="3" style="resize:none;"></textarea>
+          </div>
+          <button id="edit-profile-save-btn" class="btn btn-primary" data-local="save_profile">Save Changes</button>
+        </div>
+      </div>
+
+      <!-- Admin & Moderation Screen (Web-based Console simulation) -->
+      <div id="screen-admin" class="screen scrollable" style="display: none; padding: 16px;">
+        <h2 style="margin-bottom: 20px; font-family:'Outfit', sans-serif;">Admin & Moderation Panel</h2>
+        
+        <!-- Live Analytics Grid -->
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 24px;">
+          <div class="card admin-card" style="margin: 0; padding: 12px;">
+            <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Active Users</div>
+            <div style="font-size: 20px; font-weight: 800; color: var(--primary-orange); margin-top: 4px;">14,204</div>
+          </div>
+          <div class="card admin-card" style="margin: 0; padding: 12px; border-left-color: var(--secondary-green);">
+            <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Reported Posts</div>
+            <div id="admin-reports-count" style="font-size: 20px; font-weight: 800; color: var(--secondary-green); margin-top: 4px;">3</div>
+          </div>
+        </div>
+
+        <!-- Pending Reports -->
+        <h3 style="margin-bottom: 12px;" data-local="reports">Pending Reports</h3>
+        <div id="admin-reports-container" class="card" style="margin: 0 0 24px; padding: 12px;">
+          <!-- Reports list populated by JS -->
+        </div>
+
+        <!-- Mock Analytics Chart with inline SVGs -->
+        <h3>Live Traffic Analysis</h3>
+        <div class="card" style="margin: 12px 0 0; padding: 16px; display: flex; flex-direction: column; align-items: center;">
+          <svg viewBox="0 0 400 150" style="width: 100%; height: 120px;">
+            <path d="M 0 130 Q 50 80 100 110 T 200 40 T 300 70 T 400 20" fill="none" stroke="var(--primary-orange)" stroke-width="3"></path>
+            <path d="M 0 130 Q 50 80 100 110 T 200 40 T 300 70 T 400 20 L 400 150 L 0 150 Z" fill="url(#chartGrad)" opacity="0.15"></path>
+            <defs>
+              <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--primary-orange)"></stop>
+                <stop offset="100%" stop-color="var(--primary-orange)" stop-opacity="0"></stop>
+              </linearGradient>
+            </defs>
+          </svg>
+          <span style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">Simulated live traffic peak load tracker</span>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Navigation Footer Menu -->
+    <footer id="app-footer">
+      <div id="nav-home" class="nav-item active">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span data-local="nav_home">Home</span>
+      </div>
+      <div id="nav-search" class="nav-item">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <span data-local="nav_search">Search</span>
+      </div>
+      <div id="nav-create" class="nav-create-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+      </div>
+      <div id="nav-leaderboard" class="nav-item">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.45 1-1 1H4v2h16v-2h-5c-.55 0-1-.45-1-1v-2.34"/><path d="M12 2a6 6 0 0 1 6 6v1H6V8a6 6 0 0 1 6-6Z"/></svg>
+        <span data-local="nav_leaderboard">Reward</span>
+      </div>
+      <div id="nav-reels" class="nav-item">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 8 7 4-7 4Z"/></svg>
+        <span data-local="nav_reels">Reels</span>
+      </div>
+      <div id="nav-profile" class="nav-item">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span data-local="nav_profile">Profile</span>
+      </div>
+    </footer>
+
+    <!-- Reward Floating Toast Popup -->
+    <div id="global-reward-toast" class="reward-toast">
+      <span>🎖️</span>
+      <span id="reward-toast-text" data-local="points_gained">+10 Points!</span>
+    </div>
+
+  </div>
+
+  <!-- Firebase App (the core Firebase SDK) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <!-- Firebase Authentication -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <!-- Firebase Firestore -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <!-- Firebase Storage -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+
+  <!-- Core App Logic -->
+  <script src="firebase-config.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
