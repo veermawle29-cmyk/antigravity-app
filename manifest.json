@@ -1,0 +1,17 @@
+{
+  "short_name": "YaarBuzz",
+  "name": "YaarBuzz - India's Gamified Social App",
+  "icons": [
+    {
+      "src": "assets/logo.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#0F1115",
+  "theme_color": "#0F1115",
+  "display": "standalone",
+  "orientation": "portrait"
+}
