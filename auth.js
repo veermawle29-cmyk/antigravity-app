@@ -1,14 +1,9 @@
-// auth.js
-// Handles Firebase Authentication, multi-step signup, unified login resolution, and user session management
+/**
+ * YaarBuzz - Authentication Service
+ * Consolidated Supabase-based authentication with OTP, email, and Google OAuth
+ */
 
-if (window.location.protocol === 'file:' && navigator.onLine) {
-  window.location.href = 'https://yaarbuzz-f59d7.web.app';
-}
-
-let isAuthInitialized = false;
-let confirmationResult = null;
-let timerInterval = null;
-
+// Auth state
 let signupState = {
   fullname: '',
   username: '',
@@ -16,8 +11,23 @@ let signupState = {
   password: ''
 };
 let signupAvatarFile = null;
+let timerInterval = null;
+let isAuthInitialized = false;
 
-// Clean error helper
+// Generate dynamic color avatar based on user initials
+window.generateDefaultAvatar = function(name) {
+  const initials = name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'YB';
+  const colors = ['#FF7A00', '#00A86B', '#3B82F6', '#EC4899', '#8B5CF6', '#F59E0B'];
+  const selectedColor = colors[initials.charCodeAt(0) % colors.length];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="150" height="150">
+    <circle cx="50" cy="50" r="48" fill="${selectedColor}" />
+    <text x="50%" y="54%" font-family="'Outfit', sans-serif" font-size="36" font-weight="700" fill="white" text-anchor="middle" dominant-baseline="middle">${initials}</text>
+  </svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
+const generateDefaultAvatar = window.generateDefaultAvatar;
+
+// Show auth error message
 function showAuthError(msg) {
   const errDiv = document.getElementById('auth-error-msg');
   if (errDiv) {
@@ -30,22 +40,7 @@ function showAuthError(msg) {
   }
 }
 
-// Generate dynamic color avatar based on user initials
-window.generateDefaultAvatar = function(name) {
-  const initials = name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'YB';
-  const colors = ['#FF7A00', '#00A86B', '#3B82F6', '#EC4899', '#8B5CF6', '#F59E0B'];
-  // Deterministic color selection
-  const selectedColor = colors[initials.charCodeAt(0) % colors.length];
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="150" height="150">
-    <circle cx="50" cy="50" r="48" fill="${selectedColor}" />
-    <text x="50%" y="54%" font-family="'Outfit', sans-serif" font-size="36" font-weight="700" fill="white" text-anchor="middle" dominant-baseline="middle">${initials}</text>
-  </svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-};
-const generateDefaultAvatar = window.generateDefaultAvatar;
-
-
-// Live Username Availability Check
+// Check username availability
 async function checkUsernameAvailability(username) {
   if (username.length < 3) {
     return { available: false, reason: "Too short (minimum 3 characters)" };
@@ -54,10 +49,20 @@ async function checkUsernameAvailability(username) {
   if (!regex.test(username)) {
     return { available: false, reason: "Letters, numbers, and underscores only" };
   }
-  
+
   try {
-    const doc = await db.collection('usernames').doc(username.toLowerCase().trim()).get();
-    if (doc.exists) {
+    const { data, error } = await supabase
+      .from('usernames')
+      .select('username')
+      .eq('username', username.toLowerCase().trim())
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error checking username:", error);
+      return { available: false, reason: "Error verifying username" };
+    }
+
+    if (data) {
       return { available: false, reason: "Username is already taken" };
     }
     return { available: true };
@@ -68,47 +73,167 @@ async function checkUsernameAvailability(username) {
   }
 }
 
-// Unified Login Resolver (resolves email, username, phone number to firebase login credentials)
+// Create user profile in database
+async function createUserProfile(user, profileData) {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .insert({
+        id: user.id,
+        uid: user.id,
+        email: profileData.email || user.email || '',
+        phone: profileData.phone || user.phone || '',
+        fullname: profileData.fullname,
+        username: profileData.username,
+        avatar: profileData.avatar || generateDefaultAvatar(profileData.fullname),
+        city: profileData.city || 'Unspecified',
+        interests: profileData.interests || [],
+        points: 50,
+        posts_count: 0,
+        followers_count: 0,
+        following_count: 0,
+        followers: [],
+        following: [],
+        badges: ['pioneer'],
+        bio: ''
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Add to usernames table
+    await supabase
+      .from('usernames')
+      .insert({
+        username: profileData.username.toLowerCase(),
+        uid: user.id,
+        email: profileData.email || user.email || '',
+        user_id: user.id
+      });
+
+    return data;
+  } catch (error) {
+    console.error("Error creating user profile:", error);
+    throw error;
+  }
+}
+
+// Sync user profile UI
+function syncUserProfileUI(user) {
+  document.getElementById('profile-user-fullname').textContent = user.fullname || 'YaarBuzz User';
+  document.getElementById('profile-user-handle').textContent = '@' + (user.username || 'user');
+  document.getElementById('profile-user-pic').src = user.avatar || generateDefaultAvatar(user.fullname);
+
+  document.getElementById('profile-stat-posts').textContent = user.posts_count || 0;
+  document.getElementById('profile-stat-followers').textContent = user.followers_count || 0;
+  document.getElementById('profile-stat-following').textContent = user.following_count || 0;
+  document.getElementById('profile-stat-points').textContent = user.points || 0;
+
+  const previewPic = document.getElementById('edit-profile-pic-preview');
+  if (previewPic) {
+    previewPic.src = user.avatar || generateDefaultAvatar(user.fullname);
+  }
+
+  // Bind badges
+  const userBadges = user.badges || [];
+  const pioneerBadge = document.getElementById('badge-pioneer');
+  if (pioneerBadge) pioneerBadge.classList.toggle('active', userBadges.includes('pioneer'));
+
+  const localBadge = document.getElementById('badge-local');
+  if (localBadge) localBadge.classList.toggle('active', userBadges.includes('local') || (user.city && user.city !== 'Unspecified'));
+
+  const streakBadge = document.getElementById('badge-streak');
+  if (streakBadge) streakBadge.classList.toggle('active', userBadges.includes('streak'));
+
+  const creatorBadge = document.getElementById('badge-creator');
+  if (creatorBadge) creatorBadge.classList.toggle('active', userBadges.includes('creator') || (user.posts_count >= 10));
+}
+
+// Load user profile from database
+async function loadUserProfile(userId) {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error("Error loading user profile:", error);
+    return null;
+  }
+}
+
+// Transition to main app
+function transitionToApp() {
+  if (STATE.currentScreen === 'auth' || STATE.currentScreen === 'onboarding') {
+    showScreen('home');
+  }
+}
+
+// ============================================
+// EMAIL/PASSWORD AUTHENTICATION
+// ============================================
+
 async function loginUserUnified(identifier, password) {
   showAuthError(null);
-  
+
   const cleanId = identifier.trim();
   if (!cleanId || !password) {
     showAuthError("All fields are required!");
     return;
   }
-  
+
   const loginBtn = document.getElementById('auth-login-btn');
   loginBtn.disabled = true;
   loginBtn.querySelector('span').textContent = "Logging In...";
-  
+
   try {
     let resolvedEmail = cleanId;
 
     // Check if input is a non-email identifier
     if (!cleanId.includes('@')) {
+      // Could be username or phone
       const isPhone = /^\+?[0-9\s\-()]{7,15}$/.test(cleanId);
       if (isPhone) {
-        // Phone login - format cleanly to match synthetic signups
-        const cleanPhone = cleanId.replace(/[^0-9+]/g, '');
-        resolvedEmail = `phone_${cleanPhone}@yaarbuzz.com`;
+        // Phone login - OTP flow should be used, show error
+        showAuthError("For phone login, please use 'Log In with Phone OTP' option below.");
+        loginBtn.disabled = false;
+        loginBtn.querySelector('span').textContent = "Log In";
+        return;
       } else {
-        // Username login - retrieve associated email from usernames index doc
-        const usernameQuery = cleanId.toLowerCase();
-        const doc = await db.collection('usernames').doc(usernameQuery).get();
-        if (!doc.exists) {
+        // Username login - lookup email from usernames table
+        const { data, error } = await supabase
+          .from('usernames')
+          .select('email')
+          .eq('username', cleanId.toLowerCase())
+          .maybeSingle();
+
+        if (!data) {
           throw new Error("Username not found. Please verify or Sign Up.");
         }
-        resolvedEmail = doc.data().email;
+        resolvedEmail = data.email;
       }
     }
 
-    await auth.signInWithEmailAndPassword(resolvedEmail, password);
+    // Sign in with Supabase
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: resolvedEmail,
+      password: password
+    });
+
+    if (error) throw error;
+
+    // Session established - onAuthStateChange will handle the rest
   } catch (error) {
-    console.error("Unified login error:", error);
+    console.error("Login error:", error);
     window.logError("Unified Login", error);
-    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-      showAuthError("Invalid username, email, phone or password.");
+
+    if (error.message.includes('Invalid login credentials')) {
+      showAuthError("Invalid email/username or password.");
     } else {
       showAuthError(error.message);
     }
@@ -118,7 +243,10 @@ async function loginUserUnified(identifier, password) {
   }
 }
 
-// Signup Step 1 Next Transition
+// ============================================
+// SIGNUP FLOW
+// ============================================
+
 async function handleSignupNext() {
   showAuthError(null);
   const fullname = document.getElementById('auth-signup-fullname').value.trim();
@@ -149,13 +277,13 @@ async function handleSignupNext() {
       return;
     }
 
-    // Save state details
+    // Save state
     signupState.fullname = fullname;
     signupState.username = username;
     signupState.emailOrPhone = emailOrPhone;
     signupState.password = password;
 
-    // Transition UI step
+    // Transition UI
     document.getElementById('auth-signup-step1').style.display = 'none';
     document.getElementById('auth-signup-step2').style.display = 'flex';
     document.getElementById('signup-step2-dot').classList.add('active');
@@ -169,7 +297,6 @@ async function handleSignupNext() {
   }
 }
 
-// Signup Step 2 Back Transition
 function handleSignupBack() {
   document.getElementById('auth-signup-step2').style.display = 'none';
   document.getElementById('auth-signup-step1').style.display = 'flex';
@@ -178,23 +305,21 @@ function handleSignupBack() {
   showAuthError(null);
 }
 
-// Signup Final Registration Submit
 async function handleSignupSubmit() {
   showAuthError(null);
   const city = document.getElementById('auth-signup-city').value;
-  
-  // Fetch interest selections
+
   const interests = [];
   document.querySelectorAll('#auth-signup-interests .interest-chip.active').forEach(chip => {
     interests.push(chip.getAttribute('data-interest'));
   });
 
-  // Switch to Step 3 Creating Panel loader
+  // Show loading panel
   document.getElementById('auth-signup-step2').style.display = 'none';
   document.getElementById('auth-signup-step3').style.display = 'flex';
 
   try {
-    // 0. Double-check username uniqueness at submit time to prevent race conditions
+    // Double-check username at submit
     const availability = await checkUsernameAvailability(signupState.username);
     if (!availability.available) {
       throw new Error(`Username is taken: ${availability.reason}`);
@@ -202,183 +327,209 @@ async function handleSignupSubmit() {
 
     let email = signupState.emailOrPhone;
     let phone = '';
-    
+
     // Check if input is phone format
     const isPhone = /^\+?[0-9\s\-()]{7,15}$/.test(email);
     if (isPhone) {
       phone = email.replace(/[^0-9+]/g, '');
-      email = `phone_${phone}@yaarbuzz.com`; // Synthetic unique mapping email
+      // For phone-based signup, we need to use OTP first
+      // Store data and trigger OTP flow
+      showAuthError("Phone signup requires OTP verification. Please use the Phone OTP option.");
+      document.getElementById('auth-signup-step3').style.display = 'none';
+      document.getElementById('auth-signup-step2').style.display = 'flex';
+      return;
     } else if (!email.includes('@')) {
       throw new Error("Please enter a valid email address or phone number.");
     }
 
-    // 1. Create account on Firebase Authentication
-    const userCredential = await auth.createUserWithEmailAndPassword(email, signupState.password);
-    const user = userCredential.user;
-
-    // 2. Upload Profile Picture to Firebase Storage if exists
-    let avatarUrl = '';
-    if (signupAvatarFile) {
-      try {
-        const storageRef = storage.ref();
-        const picRef = storageRef.child(`profile_pics/${user.uid}/${Date.now()}_${signupAvatarFile.name}`);
-        const uploadResult = await picRef.put(signupAvatarFile);
-        avatarUrl = await uploadResult.ref.getDownloadURL();
-      } catch (uploadErr) {
-        console.error("Avatar upload failed, falling back to initials SVG", uploadErr);
-        window.logError("Signup avatar upload fallback", uploadErr);
-        avatarUrl = generateDefaultAvatar(signupState.fullname);
-      }
-    } else {
-      avatarUrl = generateDefaultAvatar(signupState.fullname);
-    }
-
-    // 3. Create document in Firestore users collection
-    const newUserProfile = {
-      uid: user.uid,
+    // Create account with Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email: email.toLowerCase().trim(),
-      phone: phone,
-      fullname: signupState.fullname,
-      username: signupState.username,
-      avatar: avatarUrl,
-      city: city || 'Unspecified',
-      interests: interests,
-      points: 50, // Welcome signup bonus
-      postsCount: 0,
-      followersCount: 0,
-      followingCount: 0,
-      following: [],
-      followers: [],
-      badges: ['pioneer'], // Automatic Pioneer Badge
-      bio: '',
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    };
-
-    const batch = db.batch();
-    const userRef = db.collection('users').doc(user.uid);
-    const usernameRef = db.collection('usernames').doc(signupState.username);
-    batch.set(userRef, newUserProfile);
-    batch.set(usernameRef, { uid: user.uid, email: email.toLowerCase().trim() });
-    await batch.commit();
-
-    STATE.currentUser = newUserProfile;
-
-    // Update firebase user credentials
-    await user.updateProfile({
-      displayName: signupState.fullname,
-      photoURL: avatarUrl
+      password: signupState.password,
+      options: {
+        data: {
+          fullname: signupState.fullname,
+          username: signupState.username
+        }
+      }
     });
 
-    syncUserProfileUI(newUserProfile);
-    
+    if (authError) throw authError;
+
+    const user = authData.user;
+
+    // Check if email confirmation is required
+    if (!user) {
+      showAuthError("Please check your email to confirm your account, then log in.");
+      document.getElementById('auth-signup-step3').style.display = 'none';
+      document.getElementById('auth-signup-step1').style.display = 'flex';
+      document.getElementById('auth-tab-login').click();
+      return;
+    }
+
+    // Upload avatar if exists
+    let avatarUrl = generateDefaultAvatar(signupState.fullname);
+    if (signupAvatarFile) {
+      try {
+        const fileExt = signupAvatarFile.name.split('.').pop();
+        const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('profile_pics')
+          .upload(fileName, signupAvatarFile);
+
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from('profile_pics')
+            .getPublicUrl(fileName);
+          avatarUrl = urlData.publicUrl;
+        }
+      } catch (uploadErr) {
+        console.error("Avatar upload failed, using default", uploadErr);
+      }
+    }
+
+    // Create user profile in database
+    const profileData = {
+      fullname: signupState.fullname,
+      username: signupState.username,
+      email: email.toLowerCase().trim(),
+      phone: phone,
+      avatar: avatarUrl,
+      city: city || 'Unspecified',
+      interests: interests
+    };
+
+    await createUserProfile(user, profileData);
+
+    // Update auth metadata
+    await supabase.auth.updateUser({
+      data: {
+        fullname: signupState.fullname,
+        username: signupState.username,
+        avatar: avatarUrl
+      }
+    });
+
+    STATE.currentUser = { ...profileData, id: user.id, uid: user.id };
+    syncUserProfileUI(STATE.currentUser);
+
     if (typeof window.initAppAuthenticated === 'function') {
       window.initAppAuthenticated();
     }
     transitionToApp();
+
   } catch (error) {
     console.error("Registration failed:", error);
-    window.logError("Account Registration Rebuild", error);
+    window.logError("Account Registration", error);
     showAuthError(error.message);
-    
-    // Fallback back to Step 2 Customize Panel
+
     document.getElementById('auth-signup-step3').style.display = 'none';
     document.getElementById('auth-signup-step2').style.display = 'flex';
   }
 }
 
-// Send Password Reset Email
-async function resetUserPassword(email) {
+// ============================================
+// PHONE OTP AUTHENTICATION
+// ============================================
+
+async function sendPhoneOTP(phoneNumber, isResend = false) {
   showAuthError(null);
-  
-  if (!email) {
-    showAuthError("Please enter your email address.");
-    return;
+
+  // Validate phone format
+  const cleanPhone = phoneNumber.replace(/[^0-9+]/g, '');
+  const phoneRegex = /^\+[1-9]\d{1,14}$/;
+
+  if (!phoneRegex.test(cleanPhone)) {
+    showAuthError("Invalid phone format! Include country code (e.g. +919876543210).");
+    return false;
   }
-  
-  const forgotBtn = document.getElementById('auth-forgot-btn');
-  forgotBtn.disabled = true;
-  forgotBtn.querySelector('span').textContent = "Sending Link...";
-  
+
+  const sendOtpBtn = document.getElementById('auth-send-otp-btn');
+  const resendOtpBtn = document.getElementById('auth-resend-otp-btn');
+
+  if (!isResend) {
+    sendOtpBtn.disabled = true;
+    document.getElementById('send-btn-text').textContent = "Sending...";
+  } else {
+    resendOtpBtn.disabled = true;
+    resendOtpBtn.textContent = "Sending...";
+  }
+
   try {
-    await auth.sendPasswordResetEmail(email.trim());
-    window.showNotification("Password reset email sent successfully! Please check your inbox.", "success");
-    
-    // Switch view back to Login
-    document.getElementById('auth-forgot-view').style.display = 'none';
-    document.getElementById('auth-login-view').style.display = 'flex';
+    const { data, error } = await supabase.auth.signInWithOtp({
+      phone: cleanPhone
+    });
+
+    if (error) throw error;
+
+    // Show OTP input section
+    document.getElementById('phone-input-section').style.display = 'none';
+    document.getElementById('otp-input-section').style.display = 'block';
+
+    startOTPTimer();
+    return true;
+
   } catch (error) {
-    console.error("Password reset error:", error);
-    window.logError("Reset Password Flow", error);
-    showAuthError(error.message);
-  } finally {
-    forgotBtn.disabled = false;
-    forgotBtn.querySelector('span').textContent = "Send Reset Link";
-  }
-}
+    console.error("OTP send error:", error);
+    window.logError("Send Phone OTP", error);
 
-// Sync user stats and badges dynamically from Firestore variables
-function syncUserProfileUI(user) {
-  document.getElementById('profile-user-fullname').textContent = user.fullname || 'YaarBuzz User';
-  document.getElementById('profile-user-handle').textContent = '@' + (user.username || 'user');
-  document.getElementById('profile-user-pic').src = user.avatar || generateDefaultAvatar(user.fullname);
-  
-  const postsCount = user.postsCount || 0;
-  const followersCount = user.followersCount || 0;
-  const followingCount = user.followingCount || 0;
-  const points = user.points || 0;
-
-  document.getElementById('profile-stat-posts').textContent = postsCount;
-  document.getElementById('profile-stat-followers').textContent = followersCount;
-  document.getElementById('profile-stat-following').textContent = followingCount;
-  document.getElementById('profile-stat-points').textContent = points;
-  
-  const previewPic = document.getElementById('edit-profile-pic-preview');
-  if (previewPic) {
-    previewPic.src = user.avatar || generateDefaultAvatar(user.fullname);
-  }
-
-  // Bind Badges dynamically from DB array (remove HTML active flags)
-  const userBadges = user.badges || [];
-  
-  const pioneerBadge = document.getElementById('badge-pioneer');
-  if (pioneerBadge) {
-    if (userBadges.includes('pioneer')) pioneerBadge.classList.add('active');
-    else pioneerBadge.classList.remove('active');
-  }
-
-  const localBadge = document.getElementById('badge-local');
-  if (localBadge) {
-    if (userBadges.includes('local') || (user.city && user.city !== 'Unspecified')) {
-      localBadge.classList.add('active');
+    if (error.message.includes('rate limit')) {
+      showAuthError("Too many OTP requests. Please wait before trying again.");
     } else {
-      localBadge.classList.remove('active');
+      showAuthError("Failed to send OTP: " + error.message);
     }
-  }
-
-  const streakBadge = document.getElementById('badge-streak');
-  if (streakBadge) {
-    if (userBadges.includes('streak')) streakBadge.classList.add('active');
-    else streakBadge.classList.remove('active');
-  }
-
-  const creatorBadge = document.getElementById('badge-creator');
-  if (creatorBadge) {
-    if (userBadges.includes('creator') || postsCount >= 10) creatorBadge.classList.add('active');
-    else creatorBadge.classList.remove('active');
+    return false;
+  } finally {
+    sendOtpBtn.disabled = false;
+    document.getElementById('send-btn-text').textContent = "Send OTP via SMS";
+    resendOtpBtn.disabled = false;
+    resendOtpBtn.textContent = "Resend OTP";
   }
 }
 
-function transitionToApp() {
-  if (STATE.currentScreen === 'auth' || STATE.currentScreen === 'onboarding') {
-    showScreen('home');
+async function verifyPhoneOTP(phoneNumber, otp) {
+  showAuthError(null);
+
+  if (!otp || otp.length !== 6) {
+    showAuthError("Please enter the 6-digit verification code.");
+    return false;
+  }
+
+  const verifyBtn = document.getElementById('auth-verify-otp-btn');
+  verifyBtn.disabled = true;
+  verifyBtn.querySelector('span').textContent = "Verifying...";
+
+  try {
+    const cleanPhone = phoneNumber.replace(/[^0-9+]/g, '');
+
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone: cleanPhone,
+      token: otp,
+      type: 'sms'
+    });
+
+    if (error) throw error;
+
+    clearInterval(timerInterval);
+    return true;
+
+  } catch (error) {
+    console.error("OTP verify error:", error);
+    window.logError("Verify Phone OTP", error);
+    showAuthError("OTP Verification Failed: " + error.message);
+    return false;
+  } finally {
+    verifyBtn.disabled = false;
+    verifyBtn.querySelector('span').textContent = "Verify OTP & Log In";
   }
 }
 
-function startOtpTimer() {
+function startOTPTimer() {
   const timerText = document.getElementById('otp-timer-text');
   const countdownEl = document.getElementById('otp-countdown');
   const resendBtn = document.getElementById('auth-resend-otp-btn');
-  
+
   let timeLeft = 60;
   timerText.style.display = 'inline';
   resendBtn.style.display = 'none';
@@ -396,133 +547,203 @@ function startOtpTimer() {
   }, 1000);
 }
 
-// reCAPTCHA setup for SMS verification
-function setupRecaptcha() {
-  if (typeof firebase !== 'undefined' && firebase.auth) {
-    try {
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-        document.getElementById('recaptcha-container').innerHTML = '';
-      }
-      
-      window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-        'size': 'invisible',
-        'callback': (response) => {},
-        'expired-callback': () => {
-          showAuthError("Security check expired. Please try again.");
-        }
-      });
-      window.recaptchaVerifier.render();
-    } catch(e) {
-      console.error("reCAPTCHA initialization error:", e);
-      window.logError("SMS reCAPTCHA Init", e);
-      showAuthError("Failed to initialize verification verification check.");
-    }
-  }
-}
-
-function triggerSmsSend(isResend = false) {
-  showAuthError(null);
-  const sendOtpBtn = document.getElementById('auth-send-otp-btn');
-  const sendBtnText = document.getElementById('send-btn-text');
-  const resendOtpBtn = document.getElementById('auth-resend-otp-btn');
-  const phoneInput = document.getElementById('login-identifier');
-  
-  let phoneNumber = phoneInput.value.trim();
-
-  // Basic Mobile Number Validation
-  const phoneRegex = /^\+[1-9]\d{1,14}$/;
-  if (!phoneRegex.test(phoneNumber)) {
-    showAuthError("Invalid phone format! Include country code (e.g. +919876543210).");
-    return;
-  }
-
-  if (!isResend) {
-    sendOtpBtn.disabled = true;
-    sendBtnText.textContent = "Sending...";
-  } else {
-    resendOtpBtn.textContent = "Sending...";
-    resendOtpBtn.disabled = true;
-  }
-  
-  try {
-    const appVerifier = window.recaptchaVerifier;
-    firebase.auth().signInWithPhoneNumber(phoneNumber, appVerifier)
-      .then((result) => {
-        window.confirmationResult = result;
-        
-        sendOtpBtn.disabled = false;
-        sendBtnText.textContent = "Send OTP via SMS";
-        resendOtpBtn.textContent = "Resend OTP";
-        resendOtpBtn.disabled = false;
-        
-        document.getElementById('phone-input-section').style.display = 'none';
-        document.getElementById('otp-input-section').style.display = 'block';
-        document.getElementById('recaptcha-container').style.display = 'none';
-        
-        startOtpTimer();
-      })
-      .catch((error) => {
-        sendOtpBtn.disabled = false;
-        sendBtnText.textContent = "Send OTP via SMS";
-        resendOtpBtn.textContent = "Resend OTP";
-        resendOtpBtn.disabled = false;
-
-        window.logError("SMS Verification Send", error);
-        if (error.code === 'auth/too-many-requests') {
-           showAuthError("Too many SMS requests sent. Please try again later.");
-        } else if (error.code === 'auth/invalid-phone-number') {
-           showAuthError("The phone number provided is invalid.");
-        } else {
-           showAuthError("Error sending SMS: " + error.message);
-        }
-        setupRecaptcha();
-      });
-  } catch (e) {
-    sendOtpBtn.disabled = false;
-    sendBtnText.textContent = "Send OTP via SMS";
-    resendOtpBtn.disabled = false;
-    window.logError("SMS Request Pipeline", e);
-    window.showNotification("Firebase Phone Auth error. Ensure configuration credentials are set.", "error");
-  }
-}
+// ============================================
+// GOOGLE OAUTH
+// ============================================
 
 async function loginUserWithGoogle() {
   showAuthError(null);
   const googleBtn = document.getElementById('auth-google-btn');
   if (!googleBtn) return;
+
   googleBtn.disabled = true;
-  const originalHtml = googleBtn.innerHTML;
   googleBtn.innerHTML = '<span>Connecting...</span>';
 
   try {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    await auth.signInWithRedirect(provider);
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + window.location.pathname
+      }
+    });
+
+    if (error) throw error;
+    // Redirect happens automatically
+
   } catch (error) {
     console.error("Google login error:", error);
-    window.logError("Google OAuth Redirect", error);
+    window.logError("Google OAuth", error);
     showAuthError("Google Sign-In failed: " + error.message);
     googleBtn.disabled = false;
-    googleBtn.innerHTML = originalHtml;
+    googleBtn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"><path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.866-3.577-7.866-8s3.536-8 7.866-8c2.46 0 4.105 1.025 5.047 1.926l3.227-3.1C18.29.986 15.485 0 12.24 0 5.48 0 0 5.37 0 12s5.48 12 12.24 12c7.06 0 11.758-4.912 11.758-11.83 0-.796-.086-1.4-.189-1.885H12.24Z"/></svg>
+      <span>Continue with Google</span>
+    `;
   }
 }
 
-// DOM Setup and Binding on load
+// ============================================
+// PASSWORD RESET
+// ============================================
+
+async function resetUserPassword(email) {
+  showAuthError(null);
+
+  if (!email) {
+    showAuthError("Please enter your email address.");
+    return;
+  }
+
+  const forgotBtn = document.getElementById('auth-forgot-btn');
+  forgotBtn.disabled = true;
+  forgotBtn.querySelector('span').textContent = "Sending Link...";
+
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: window.location.origin + window.location.pathname
+    });
+
+    if (error) throw error;
+
+    window.showNotification("Password reset email sent! Check your inbox.", "success");
+    document.getElementById('auth-forgot-view').style.display = 'none';
+    document.getElementById('auth-login-view').style.display = 'flex';
+
+  } catch (error) {
+    console.error("Password reset error:", error);
+    window.logError("Reset Password Flow", error);
+    showAuthError(error.message);
+  } finally {
+    forgotBtn.disabled = false;
+    forgotBtn.querySelector('span').textContent = "Send Reset Link";
+  }
+}
+
+// ============================================
+// LOGOUT
+// ============================================
+
+async function logoutUser() {
+  try {
+    clearInterval(timerInterval);
+
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+
+    STATE.currentUser = null;
+
+    // Clean form values
+    const loginIdentifier = document.getElementById('auth-login-identifier');
+    const loginPassword = document.getElementById('auth-login-password');
+    if (loginIdentifier) loginIdentifier.value = '';
+    if (loginPassword) loginPassword.value = '';
+
+    document.getElementById('phone-input-section').style.display = 'block';
+    document.getElementById('otp-input-section').style.display = 'none';
+
+    const tabLogin = document.getElementById('auth-tab-login');
+    if (tabLogin) tabLogin.click();
+
+    showScreen('auth');
+
+  } catch (error) {
+    console.error("Logout error:", error);
+    showScreen('auth');
+  }
+}
+
+// ============================================
+// AUTH STATE LISTENER
+// ============================================
+
+function setupAuthListener() {
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    console.log("[Auth] State changed:", event);
+
+    const hideSplash = () => {
+      const splash = document.getElementById('screen-splash');
+      if (splash) {
+        splash.classList.add('hide');
+      }
+    };
+
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      const user = session?.user;
+      if (!user) {
+        hideSplash();
+        return;
+      }
+
+      // Load user profile
+      let profile = await loadUserProfile(user.id);
+
+      if (!profile) {
+        // New user (Google/OTP) - need profile setup
+        const setupFullname = document.getElementById('auth-setup-fullname');
+        const setupAvatarPreview = document.getElementById('auth-setup-avatar-preview');
+
+        const userMeta = user.user_metadata || {};
+        if (setupFullname) setupFullname.value = userMeta.fullname || userMeta.name || '';
+        if (setupAvatarPreview) {
+          setupAvatarPreview.src = userMeta.avatar || userMeta.picture || generateDefaultAvatar(userMeta.fullname || userMeta.name || 'YB');
+        }
+
+        const setupUsername = document.getElementById('auth-setup-username');
+        if (setupUsername) {
+          let suggestedName = (userMeta.fullname || userMeta.name || 'user').toLowerCase().replace(/[^a-z0-9_]/g, '_');
+          if (suggestedName.length < 3) suggestedName = 'user_' + Math.floor(1000 + Math.random() * 9000);
+          setupUsername.value = suggestedName;
+        }
+
+        showScreen('profile-setup');
+        hideSplash();
+      } else {
+        STATE.currentUser = profile;
+        syncUserProfileUI(STATE.currentUser);
+
+        if (typeof window.initAppAuthenticated === 'function') {
+          window.initAppAuthenticated();
+        }
+        transitionToApp();
+        hideSplash();
+      }
+    } else if (event === 'SIGNED_OUT') {
+      STATE.currentUser = null;
+      showScreen('auth');
+      hideSplash();
+    } else if (event === 'INITIAL_SESSION') {
+      if (session?.user) {
+        // Handle initial session same as signed in
+        const profile = await loadUserProfile(session.user.id);
+        if (profile) {
+          STATE.currentUser = profile;
+          syncUserProfileUI(STATE.currentUser);
+          if (typeof window.initAppAuthenticated === 'function') {
+            window.initAppAuthenticated();
+          }
+          transitionToApp();
+        }
+      }
+      hideSplash();
+    }
+
+    isAuthInitialized = true;
+  });
+}
+
+// ============================================
+// DOM SETUP
+// ============================================
+
 document.addEventListener('DOMContentLoaded', () => {
   const logoutBtn = document.getElementById('settings-logout-btn');
-  
-  // Tab selectors
   const tabLogin = document.getElementById('auth-tab-login');
   const tabSignup = document.getElementById('auth-tab-signup');
-  
-  // Panels
   const loginView = document.getElementById('auth-login-view');
   const signupView = document.getElementById('auth-signup-view');
   const forgotView = document.getElementById('auth-forgot-view');
   const phoneView = document.getElementById('auth-phone-view');
-  const captchaContainer = document.getElementById('recaptcha-container');
 
-  // Input & triggers
   const loginIdentifier = document.getElementById('auth-login-identifier');
   const loginPassword = document.getElementById('auth-login-password');
   const loginSubmitBtn = document.getElementById('auth-login-btn');
@@ -530,62 +751,58 @@ document.addEventListener('DOMContentLoaded', () => {
   const forgotEmailInput = document.getElementById('auth-forgot-email');
   const forgotSubmitBtn = document.getElementById('auth-forgot-btn');
 
-  // Step selectors
   const signupNextBtn = document.getElementById('auth-signup-next-btn');
   const signupBackBtn = document.getElementById('auth-signup-back-btn');
   const signupSubmitBtn = document.getElementById('auth-signup-submit-btn');
-  
+
   const phoneOtpToggle = document.getElementById('auth-toggle-phone-otp-login');
   const passwordToggle = document.getElementById('auth-toggle-password-login');
-
   const sendOtpBtn = document.getElementById('auth-send-otp-btn');
   const verifyOtpBtn = document.getElementById('auth-verify-otp-btn');
   const resendOtpBtn = document.getElementById('auth-resend-otp-btn');
   const otpInput = document.getElementById('login-otp');
+  const phoneInput = document.getElementById('login-identifier');
 
-  // 1. Setup Form Toggles
+  // Setup auth listener
+  setupAuthListener();
+
+  // Tab toggles
   if (tabLogin && tabSignup) {
     tabLogin.addEventListener('click', () => {
       tabLogin.classList.add('active');
       tabSignup.classList.remove('active');
-      
       loginView.style.display = 'flex';
       signupView.style.display = 'none';
       phoneView.style.display = 'none';
       forgotView.style.display = 'none';
-      captchaContainer.style.display = 'none';
       showAuthError(null);
     });
 
     tabSignup.addEventListener('click', () => {
       tabSignup.classList.add('active');
       tabLogin.classList.remove('active');
-      
       signupView.style.display = 'flex';
       loginView.style.display = 'none';
       phoneView.style.display = 'none';
       forgotView.style.display = 'none';
-      captchaContainer.style.display = 'none';
-      
-      // Reset signup step panels
+
       document.getElementById('auth-signup-step1').style.display = 'flex';
       document.getElementById('auth-signup-step2').style.display = 'none';
       document.getElementById('auth-signup-step3').style.display = 'none';
       document.getElementById('signup-step2-dot').classList.remove('active');
       document.getElementById('signup-step-line').classList.remove('active');
-      
+
       showAuthError(null);
     });
   }
 
+  // Phone OTP toggle
   if (phoneOtpToggle) {
     phoneOtpToggle.addEventListener('click', (e) => {
       e.preventDefault();
       loginView.style.display = 'none';
       phoneView.style.display = 'flex';
-      captchaContainer.style.display = 'flex';
       showAuthError(null);
-      setupRecaptcha();
     });
   }
 
@@ -593,35 +810,32 @@ document.addEventListener('DOMContentLoaded', () => {
     passwordToggle.addEventListener('click', (e) => {
       e.preventDefault();
       phoneView.style.display = 'none';
-      captchaContainer.style.display = 'none';
       loginView.style.display = 'flex';
       showAuthError(null);
     });
   }
 
-  document.getElementById('auth-forgot-link').addEventListener('click', (e) => {
+  // Forgot password
+  document.getElementById('auth-forgot-link')?.addEventListener('click', (e) => {
     e.preventDefault();
     loginView.style.display = 'none';
     forgotView.style.display = 'flex';
     showAuthError(null);
   });
 
-  document.getElementById('auth-toggle-to-login-from-forgot').addEventListener('click', (e) => {
+  document.getElementById('auth-toggle-to-login-from-forgot')?.addEventListener('click', (e) => {
     e.preventDefault();
     forgotView.style.display = 'none';
     loginView.style.display = 'flex';
     showAuthError(null);
   });
 
-  // Step 2 chips listeners
-  const interestChips = document.querySelectorAll('#auth-signup-interests .interest-chip');
-  interestChips.forEach(chip => {
-    chip.addEventListener('click', () => {
-      chip.classList.toggle('active');
-    });
+  // Interest chips
+  document.querySelectorAll('#auth-signup-interests .interest-chip, #auth-setup-interests .interest-chip').forEach(chip => {
+    chip.addEventListener('click', () => chip.classList.toggle('active'));
   });
 
-  // Avatar select elements
+  // Avatar upload (signup)
   const avatarTrigger = document.getElementById('auth-signup-avatar-trigger');
   const avatarInput = document.getElementById('auth-signup-avatar-input');
   const avatarPreview = document.getElementById('auth-signup-avatar-preview');
@@ -635,153 +849,45 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 2. Setup Firebase Auth Observer Listener
-  try {
-    firebase.auth().onAuthStateChanged((user) => {
-      const hideSplash = () => {
-        const splash = document.getElementById('screen-splash');
-        if (splash) {
-          splash.classList.add('hide');
-        }
-      };
-
-      if (user) {
-        const userRef = db.collection('users').doc(user.uid);
-        userRef.get().then((doc) => {
-          if (!doc.exists) {
-            // New user via Google or SMS OTP: Redirect to Complete Profile Setup screen
-            const setupFullname = document.getElementById('auth-setup-fullname');
-            const setupAvatarPreview = document.getElementById('auth-setup-avatar-preview');
-            
-            if (setupFullname) setupFullname.value = user.displayName || '';
-            if (setupAvatarPreview) {
-              setupAvatarPreview.src = user.photoURL || generateDefaultAvatar(user.displayName || 'YaarBuzz User');
-            }
-            
-            // Suggest clean handle based on displayName
-            const setupUsername = document.getElementById('auth-setup-username');
-            if (setupUsername) {
-              let suggestedName = (user.displayName || 'user').toLowerCase().replace(/[^a-z0-9_]/g, '_');
-              if (suggestedName.length < 3) suggestedName = 'user_' + Math.floor(1000 + Math.random() * 9000);
-              setupUsername.value = suggestedName;
-              setupUsername.dispatchEvent(new Event('input')); // trigger availability check
-            }
-            
-            showScreen('profile-setup');
-            hideSplash();
-          } else {
-            STATE.currentUser = doc.data();
-            syncUserProfileUI(STATE.currentUser);
-            if (typeof window.initAppAuthenticated === 'function') {
-              window.initAppAuthenticated();
-            }
-            transitionToApp();
-            hideSplash();
-          }
-        }).catch(err => {
-          console.error("Error reading Firestore profile:", err);
-          window.logError("Profile Document Sync", err);
-          
-          // Fast local fallback block to bypass db errors during network issues
-          STATE.currentUser = {
-            uid: user.uid,
-            fullname: user.displayName || 'YaarBuzz User',
-            username: 'user_' + user.uid.substring(0, 5),
-            avatar: user.photoURL || generateDefaultAvatar(user.displayName || 'YaarBuzz User'),
-            points: 0,
-            postsCount: 0,
-            followersCount: 0,
-            followingCount: 0,
-            following: [],
-            followers: [],
-            badges: ['pioneer'],
-            bio: ''
-          };
-          syncUserProfileUI(STATE.currentUser);
-          if (typeof window.initAppAuthenticated === 'function') {
-            window.initAppAuthenticated();
-          }
-          transitionToApp();
-          hideSplash();
-        });
-      } else {
-        STATE.currentUser = null;
-        showScreen('auth');
-        hideSplash();
-      }
-      isAuthInitialized = true;
-    });
-  } catch (e) {
-    console.error("Firebase Auth Init Observer Error:", e);
-    window.logError("Auth Observer Init", e);
-  }
-
-  // 3. Setup Button Click Event Triggers
+  // Login button
   if (loginSubmitBtn) {
     loginSubmitBtn.addEventListener('click', () => {
       loginUserUnified(loginIdentifier.value, loginPassword.value);
     });
   }
 
+  // Google button
   if (googleBtn) {
     googleBtn.addEventListener('click', loginUserWithGoogle);
   }
 
-  if (signupNextBtn) {
-    signupNextBtn.addEventListener('click', handleSignupNext);
-  }
+  // Signup flow
+  if (signupNextBtn) signupNextBtn.addEventListener('click', handleSignupNext);
+  if (signupBackBtn) signupBackBtn.addEventListener('click', handleSignupBack);
+  if (signupSubmitBtn) signupSubmitBtn.addEventListener('click', handleSignupSubmit);
 
-  if (signupBackBtn) {
-    signupBackBtn.addEventListener('click', handleSignupBack);
-  }
-
-  if (signupSubmitBtn) {
-    signupSubmitBtn.addEventListener('click', handleSignupSubmit);
-  }
-
+  // Forgot password
   if (forgotSubmitBtn) {
-    forgotSubmitBtn.addEventListener('click', () => {
-      resetUserPassword(forgotEmailInput.value);
-    });
+    forgotSubmitBtn.addEventListener('click', () => resetUserPassword(forgotEmailInput.value));
   }
 
+  // Phone OTP
   if (sendOtpBtn) {
-    sendOtpBtn.addEventListener('click', () => triggerSmsSend(false));
+    sendOtpBtn.addEventListener('click', () => sendPhoneOTP(phoneInput.value, false));
   }
 
   if (resendOtpBtn) {
-    resendOtpBtn.addEventListener('click', () => {
-      setupRecaptcha();
-      triggerSmsSend(true);
-    });
+    resendOtpBtn.addEventListener('click', () => sendPhoneOTP(phoneInput.value, true));
   }
 
   if (verifyOtpBtn) {
-    verifyOtpBtn.addEventListener('click', () => {
-      const code = otpInput.value.trim();
-      if (!code || code.length !== 6) {
-        showAuthError("Please enter the 6-digit verification code.");
-        return;
-      }
-
-      verifyOtpBtn.disabled = true;
-      verifyOtpBtn.querySelector('span').textContent = "Verifying...";
-      
-      window.confirmationResult.confirm(code).then((result) => {
-        verifyOtpBtn.disabled = false;
-        verifyOtpBtn.querySelector('span').textContent = "Verify OTP & Log In";
-        clearInterval(timerInterval);
-        showScreen('home');
-      }).catch((error) => {
-        verifyOtpBtn.disabled = false;
-        verifyOtpBtn.querySelector('span').textContent = "Verify OTP & Log In";
-        window.logError("OTP Verification confirmation", error);
-        showAuthError("OTP Verification Failed: " + error.message);
-      });
+    verifyOtpBtn.addEventListener('click', async () => {
+      const success = await verifyPhoneOTP(phoneInput.value, otpInput.value);
+      // onAuthStateChange will handle the redirect
     });
   }
 
-  // 4. Step 1 Live Username Check binding
+  // Live username check (signup)
   const signupUsername = document.getElementById('auth-signup-username');
   if (signupUsername) {
     let checkTimeout = null;
@@ -789,21 +895,20 @@ document.addEventListener('DOMContentLoaded', () => {
     signupUsername.addEventListener('input', () => {
       clearTimeout(checkTimeout);
       const username = signupUsername.value.trim().toLowerCase();
-      
+
       if (!username) {
         statusDiv.style.display = 'none';
         return;
       }
-      
+
       statusDiv.textContent = "Checking...";
-      statusDiv.className = "username-status";
       statusDiv.style.color = "var(--text-secondary)";
       statusDiv.style.display = "block";
-      
+
       checkTimeout = setTimeout(async () => {
         const result = await checkUsernameAvailability(username);
         if (result.available) {
-          statusDiv.textContent = "Username is available! ✓";
+          statusDiv.textContent = "Username is available!";
           statusDiv.style.color = "var(--secondary-green)";
         } else {
           statusDiv.textContent = result.reason;
@@ -813,36 +918,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 5. Settings Logout Button
+  // Logout
   if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
-      STATE.currentUser = null;
-      if (typeof window.clearAuthenticatedListeners === 'function') {
-        window.clearAuthenticatedListeners();
-      }
-      firebase.auth().signOut().then(() => {
-        clearInterval(timerInterval);
-        
-        // Clean values
-        if (loginIdentifier) loginIdentifier.value = '';
-        if (loginPassword) loginPassword.value = '';
-        
-        document.getElementById('phone-input-section').style.display = 'block';
-        document.getElementById('otp-input-section').style.display = 'none';
-        
-        // Return login tab active on next load
-        if (tabLogin) tabLogin.click();
-        
-        showScreen('auth');
-      }).catch(() => showScreen('auth'));
-    });
+    logoutBtn.addEventListener('click', logoutUser);
   }
 
-  // 6. Complete Profile Setup Form (Google/SMS Onboarding)
+  // Profile setup (for Google/OTP users)
   let setupAvatarFile = null;
   const setupAvatarTrigger = document.getElementById('auth-setup-avatar-trigger');
   const setupAvatarInput = document.getElementById('auth-setup-avatar-input');
   const setupAvatarPreview = document.getElementById('auth-setup-avatar-preview');
+
   if (setupAvatarTrigger && setupAvatarInput) {
     setupAvatarTrigger.addEventListener('click', () => setupAvatarInput.click());
     setupAvatarInput.addEventListener('change', () => {
@@ -853,13 +939,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  const setupInterestChips = document.querySelectorAll('#auth-setup-interests .interest-chip');
-  setupInterestChips.forEach(chip => {
-    chip.addEventListener('click', () => {
-      chip.classList.toggle('active');
-    });
-  });
-
+  // Live username check (setup)
   const setupUsernameInput = document.getElementById('auth-setup-username');
   if (setupUsernameInput) {
     let checkTimeout = null;
@@ -867,21 +947,20 @@ document.addEventListener('DOMContentLoaded', () => {
     setupUsernameInput.addEventListener('input', () => {
       clearTimeout(checkTimeout);
       const username = setupUsernameInput.value.trim().toLowerCase();
-      
+
       if (!username) {
         statusDiv.style.display = 'none';
         return;
       }
-      
+
       statusDiv.textContent = "Checking...";
-      statusDiv.className = "username-status";
       statusDiv.style.color = "var(--text-secondary)";
       statusDiv.style.display = "block";
-      
+
       checkTimeout = setTimeout(async () => {
         const result = await checkUsernameAvailability(username);
         if (result.available) {
-          statusDiv.textContent = "Username is available! ✓";
+          statusDiv.textContent = "Username is available!";
           statusDiv.style.color = "var(--secondary-green)";
         } else {
           statusDiv.textContent = result.reason;
@@ -891,13 +970,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Setup submit
   const setupSubmitBtn = document.getElementById('auth-setup-submit-btn');
   if (setupSubmitBtn) {
     setupSubmitBtn.addEventListener('click', async () => {
       const errorDiv = document.getElementById('setup-error-msg');
       if (errorDiv) errorDiv.style.display = 'none';
 
-      const user = auth.currentUser;
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         showScreen('auth');
         return;
@@ -906,7 +986,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const fullname = document.getElementById('auth-setup-fullname').value.trim();
       const username = document.getElementById('auth-setup-username').value.trim().toLowerCase();
       const city = document.getElementById('auth-setup-city').value;
-      
+
       const interests = [];
       document.querySelectorAll('#auth-setup-interests .interest-chip.active').forEach(chip => {
         interests.push(chip.getAttribute('data-interest'));
@@ -924,70 +1004,62 @@ document.addEventListener('DOMContentLoaded', () => {
       setupSubmitBtn.querySelector('span').textContent = "Saving...";
 
       try {
-        // Enforce uniqueness validation at setup submit
         const availability = await checkUsernameAvailability(username);
         if (!availability.available) {
           throw new Error(availability.reason);
         }
 
-        // Upload Profile Picture if selected
-        let avatarUrl = user.photoURL || generateDefaultAvatar(fullname);
+        // Upload avatar if selected
+        let avatarUrl = user.user_metadata?.avatar || user.user_metadata?.picture || generateDefaultAvatar(fullname);
         if (setupAvatarFile) {
           try {
-            const storageRef = storage.ref();
-            const picRef = storageRef.child(`profile_pics/${user.uid}/${Date.now()}_${setupAvatarFile.name}`);
-            const uploadResult = await picRef.put(setupAvatarFile);
-            avatarUrl = await uploadResult.ref.getDownloadURL();
-          } catch (uploadErr) {
-            console.error("Avatar upload failed, falling back to default", uploadErr);
+            const fileExt = setupAvatarFile.name.split('.').pop();
+            const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+            const { error: uploadError } = await supabase.storage
+              .from('profile_pics')
+              .upload(fileName, setupAvatarFile);
+
+            if (!uploadError) {
+              const { data: urlData } = supabase.storage
+                .from('profile_pics')
+                .getPublicUrl(fileName);
+              avatarUrl = urlData.publicUrl;
+            }
+          } catch (err) {
+            console.error("Avatar upload failed", err);
           }
         }
 
-        const newUserProfile = {
-          uid: user.uid,
-          email: user.email || '',
-          phone: user.phoneNumber || '',
+        const profileData = {
           fullname: fullname,
           username: username,
+          email: user.email || '',
+          phone: user.phone || '',
           avatar: avatarUrl,
           city: city || 'Unspecified',
-          interests: interests,
-          points: 50, // Welcome signup bonus
-          postsCount: 0,
-          followersCount: 0,
-          followingCount: 0,
-          following: [],
-          followers: [],
-          badges: ['pioneer'],
-          bio: '',
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          interests: interests
         };
 
-        let userEmail = user.email || '';
-        if (!userEmail && user.phoneNumber) {
-          const cleanPhone = user.phoneNumber.replace(/[^0-9+]/g, '');
-          userEmail = `phone_${cleanPhone}@yaarbuzz.com`;
-        }
+        await createUserProfile(user, profileData);
 
-        const batch = db.batch();
-        const userRef = db.collection('users').doc(user.uid);
-        const usernameRef = db.collection('usernames').doc(username);
-        batch.set(userRef, newUserProfile);
-        batch.set(usernameRef, { uid: user.uid, email: userEmail.toLowerCase().trim() });
-        await batch.commit();
-
-        STATE.currentUser = newUserProfile;
-
-        await user.updateProfile({
-          displayName: fullname,
-          photoURL: avatarUrl
+        // Update auth metadata
+        await supabase.auth.updateUser({
+          data: {
+            fullname: fullname,
+            username: username,
+            avatar: avatarUrl
+          }
         });
 
-        syncUserProfileUI(newUserProfile);
+        STATE.currentUser = { ...profileData, id: user.id, uid: user.id };
+        syncUserProfileUI(STATE.currentUser);
+
         if (typeof window.initAppAuthenticated === 'function') {
           window.initAppAuthenticated();
         }
         showScreen('home');
+
       } catch (err) {
         console.error("Profile setup failed:", err);
         if (errorDiv) {
@@ -1000,10 +1072,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-
-  // 7. Configure Explicit Local Auth Session Persistence
-  if (typeof firebase !== 'undefined' && firebase.auth) {
-    firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL)
-      .catch((err) => console.warn("Failed to set Auth persistence:", err));
-  }
 });
+
+console.log('[Auth] YaarBuzz Auth Service loaded');
