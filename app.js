@@ -176,6 +176,22 @@ function initApp() {
   setupLeaderboardPlaceholder();
 }
 
+// Called by auth.js when user is successfully authenticated
+window.initAppAuthenticated = function() {
+  console.log('[App] User authenticated, initializing app features...');
+
+  // Show admin and notification buttons for authenticated users
+  const adminBtn = document.getElementById('admin-toggle-btn');
+  const notifBtn = document.getElementById('nav-notifications');
+  if (adminBtn) adminBtn.style.display = 'flex';
+  if (notifBtn) notifBtn.style.display = 'flex';
+
+  // Refresh data
+  if (STATE.posts.length === 0) loadPosts();
+  if (STATE.reels.length === 0) loadReels();
+  loadStories();
+};
+
 // --- LOCALIZATION ENGINE ---
 function setupLocalization() {
   const langBtn = document.getElementById('lang-toggle-btn');
@@ -238,7 +254,12 @@ function setupNavigation() {
     item.addEventListener('click', () => {
       const targetId = item.id.replace('nav-', '');
 
-      if (!STATE.currentUser && targetId !== 'auth' && targetId !== 'onboarding') {
+      // Check auth before navigation
+      if (typeof window.checkAuthAndRedirect === 'function') {
+        if (!window.checkAuthAndRedirect(targetId)) {
+          return; // Auth guard blocked navigation
+        }
+      } else if (!STATE.currentUser && targetId !== 'auth' && targetId !== 'onboarding') {
         showScreen('auth');
         return;
       }
@@ -259,9 +280,20 @@ function setupNavigation() {
 
 function showScreen(screenId) {
   const unprotectedScreens = ['auth', 'onboarding', 'splash', 'profile-setup'];
-  if (!STATE.currentUser && !unprotectedScreens.includes(screenId)) {
-    showScreen('auth');
-    return;
+
+  // CRITICAL: Use auth system's route guard if available
+  if (typeof window.checkAuthAndRedirect === 'function') {
+    if (!window.checkAuthAndRedirect(screenId)) {
+      return; // Auth guard rejected the navigation
+    }
+  } else {
+    // Fallback: Basic auth check
+    if (!STATE.currentUser && !unprotectedScreens.includes(screenId)) {
+      const authScreen = document.getElementById('screen-auth');
+      if (authScreen) authScreen.style.display = 'flex';
+      STATE.currentScreen = 'auth';
+      return;
+    }
   }
 
   STATE.currentScreen = screenId;
