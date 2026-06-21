@@ -191,23 +191,27 @@ async function sendPhoneOTP(phoneNumber, isResend = false) {
   }
 
   try {
-    // Supabase SMS OTP
-    const { data, error } = await supabase.auth.signInWithOtp({
-      phone: cleanPhone,
-      options: {
-        shouldCreateUser: true,
-        channel: 'sms'
-      }
+    // Use custom Edge Function for OTP
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-otp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({ phone: cleanPhone })
     });
 
-    if (error) {
-      // Handle specific Supabase errors
-      if (error.message.includes('rate limit') || error.message.includes('too many')) {
-        showAuthError("Too many OTP requests. Please wait a few minutes before trying again.");
-      } else if (error.message.includes('invalid phone')) {
+    const result = await response.json();
+
+    if (!response.ok || result.error) {
+      // Handle specific errors
+      const errorMsg = result.error || "Failed to send OTP";
+      if (errorMsg.includes("Too many") || errorMsg.includes("rate limit")) {
+        showAuthError("Too many OTP requests. Please wait 15 minutes before trying again.");
+      } else if (errorMsg.includes("Invalid phone")) {
         showAuthError("Invalid phone number format. Include country code (e.g., +919876543210).");
       } else {
-        showAuthError("Failed to send OTP: " + error.message);
+        showAuthError(errorMsg);
       }
       return false;
     }
@@ -216,8 +220,26 @@ async function sendPhoneOTP(phoneNumber, isResend = false) {
     document.getElementById('phone-input-section').style.display = 'none';
     document.getElementById('otp-input-section').style.display = 'block';
 
-    // Set expiry time (Supabase OTP expires in 60 seconds by default)
-    otpExpiresAt = Date.now() + (60 * 1000);
+    // Show OTP for development/testing (no SMS provider needed)
+    if (result.dev_otp) {
+      // Show in console
+      console.log(`[OTP] Code for ${cleanPhone}: ${result.dev_otp}`);
+
+      // Show notification with OTP for easy testing
+      if (typeof window.showNotification === 'function') {
+        window.showNotification(`Your OTP: ${result.dev_otp}`, 'success', 10000);
+      } else {
+        // Fallback: show alert
+        setTimeout(() => {
+          alert(`Your verification code: ${result.dev_otp}\n\n(Click OK to auto-fill)`);
+          const otpInput = document.getElementById('login-otp');
+          if (otpInput) otpInput.value = result.dev_otp;
+        }, 500);
+      }
+    }
+
+    // Set expiry time (5 minutes)
+    otpExpiresAt = Date.now() + (result.expires_in * 1000 || 300000);
     startOTPTimer();
 
     authState = AuthState.OTP_SENT;
@@ -265,23 +287,43 @@ async function verifyPhoneOTP(phoneNumber, otp) {
   authState = AuthState.OTP_VERIFYING;
 
   try {
-    const { data, error } = await supabase.auth.verifyOtp({
-      phone: validation.phone,
-      token: cleanOtp,
-      type: 'sms'
+    // Check if this is signup with pending data
+    const isSignup = pendingPhoneSignup !== null;
+
+    // Use custom Edge Function for OTP verification
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-otp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({
+        phone: validation.phone,
+        otp: cleanOtp,
+        signup_data: isSignup ? {
+          fullname: pendingPhoneSignup.fullname,
+          username: pendingPhoneSignup.username,
+          password: pendingPhoneSignup.password,
+          city: pendingPhoneSignup.city,
+          interests: pendingPhoneSignup.interests
+        } : undefined
+      })
     });
 
-    if (error) {
-      // Handle specific errors
-      if (error.message.includes('expired') || error.message.includes('Token is expired')) {
+    const result = await response.json();
+
+    if (!response.ok || result.error) {
+      const errorMsg = result.error || "Verification failed";
+
+      if (errorMsg.includes("expired")) {
         showAuthError("OTP has expired. Please request a new one.");
         clearInterval(otpTimerInterval);
         document.getElementById('otp-timer-text').style.display = 'none';
         document.getElementById('auth-resend-otp-btn').style.display = 'inline-block';
-      } else if (error.message.includes('invalid') || error.message.includes('incorrect')) {
+      } else if (errorMsg.includes("Invalid") || errorMsg.includes("incorrect")) {
         showAuthError("Invalid OTP. Please check and try again.");
       } else {
-        showAuthError("Verification failed: " + error.message);
+        showAuthError(errorMsg);
       }
       authState = AuthState.OTP_SENT;
       return false;
@@ -290,7 +332,20 @@ async function verifyPhoneOTP(phoneNumber, otp) {
     // Clear timer
     clearInterval(otpTimerInterval);
 
-    // Auth state change listener will handle the rest
+    // Handle successful verification
+    if (result.session) {
+      // New user created - set session
+      await supabase.auth.setSession({
+        access_token: result.session.access_token,
+        refresh_token: result.session.refresh_token
+      });
+
+      pendingPhoneSignup = null;
+    } else if (result.user_id) {
+      // Existing user - auth state change will handle it
+      pendingPhoneSignup = null;
+    }
+
     return true;
 
   } catch (error) {
@@ -550,6 +605,30 @@ async function handleSignupSubmit() {
     signupAvatarFile = avatarInput.files[0];
   }
 
+  // Check if this is a phone signup
+  if (pendingPhoneSignup && pendingPhoneSignup.phone) {
+    // Phone signup - send OTP
+    pendingPhoneSignup.city = city;
+    pendingPhoneSignup.interests = interests;
+
+    // Switch to phone OTP view
+    document.getElementById('auth-signup-step2').style.display = 'none';
+    document.getElementById('auth-phone-view').style.display = 'flex';
+    document.getElementById('phone-input-section').style.display = 'block';
+    document.getElementById('otp-input-section').style.display = 'none';
+
+    // Pre-fill phone number
+    const phoneInput = document.getElementById('login-identifier');
+    if (phoneInput) {
+      phoneInput.value = pendingPhoneSignup.phone;
+    }
+
+    // Auto-send OTP
+    await sendPhoneOTP(pendingPhoneSignup.phone, false);
+    return;
+  }
+
+  // Email signup flow
   // Show loading
   document.getElementById('auth-signup-step2').style.display = 'none';
   document.getElementById('auth-signup-step3').style.display = 'flex';
